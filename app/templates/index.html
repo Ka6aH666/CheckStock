@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CheckStock — остатки и движения</title>
+  <link rel="stylesheet" href="/static/style.css?v=2">
+  <script src="/static/app.js?v=2" defer></script>
+</head>
+<body>
+  <!-- Lucide line icons, ISC license; see docs/THIRD_PARTY.md -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="icon-library" aria-hidden="true">
+    <symbol id="icon-package" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></symbol>
+    <symbol id="icon-stock" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-movement" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4"/></symbol>
+    <symbol id="icon-warehouse" viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13M3 21h18M7 21V11h10v10M7 15h10M7 18h10"/></symbol>
+    <symbol id="icon-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.5-6.2L3 8M3 3v5h5M12 7v5l4 2"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7a9 9 0 0 0-15-1L3 8M3 3v5h5M4 17a9 9 0 0 0 15 1l2-2M21 21v-5h-5"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="icon-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></symbol>
+  </svg>
+  <aside class="sidebar">
+    <a class="brand" href="/"><svg class="icon" aria-hidden="true"><use href="#icon-package"/></svg>CheckStock</a>
+    <nav aria-label="Разделы">
+      <button class="nav active" data-page="stock" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#icon-stock"/></svg><span>Остатки</span></button>
+      <button class="nav" data-page="operations"><svg class="icon" aria-hidden="true"><use href="#icon-movement"/></svg><span>Операции</span></button>
+      <button class="nav" data-page="warehouses"><svg class="icon" aria-hidden="true"><use href="#icon-warehouse"/></svg><span>Склады ФФ</span></button>
+      <button class="nav" data-page="history"><svg class="icon" aria-hidden="true"><use href="#icon-history"/></svg><span>История</span></button>
+    </nav>
+    <div class="sidebar-note"><p>Физический остаток<br>− резерв = доступно</p><a href="/docs" target="_blank" rel="noopener">Документация API <svg class="icon" aria-hidden="true"><use href="#icon-external"/></svg></a></div>
+  </aside>
+  <main>
+    <header><div><div class="eyebrow">Магазин <span>/</span> Складской учёт</div><h1 id="page-title">Остатки и местонахождение</h1><p id="page-subtitle">Товар на ФФ, в резерве и в пути к получателю</p></div><button id="refresh" class="secondary"><svg class="icon" aria-hidden="true"><use href="#icon-refresh"/></svg><span class="refresh-label">Обновить</span></button></header>
+    <div id="message" class="message" role="status" hidden></div>
+    <section id="page-stock" class="page">
+      <div id="summary" class="summary"></div>
+      <div class="panel"><div class="panel-heading"><div><h2>Остатки по артикулам <span id="product-count" class="count"></span></h2><p>На каждом ФФ: доступно, физически и резерв FBS</p></div><label class="search"><span class="sr-only">Найти товар</span><svg class="icon" aria-hidden="true"><use href="#icon-search"/></svg><input id="stock-search" placeholder="Артикул или название" type="search"></label></div><div id="stock-table" class="table-wrap" role="region" aria-label="Остатки по артикулам" tabindex="0"></div></div>
+      <div class="accounting-note"><span class="note-label">Сверка учёта</span><p>На ФФ + в пути + принято FBO + доставлено FBS = все приходы<br><span>Архивные ФФ включены в итоги · Резерв входит в физический остаток</span></p></div>
+    </section>
+    <section id="page-operations" class="page" hidden>
+      <div class="panel form-panel"><h2>Новая операция</h2><p class="muted">Перемещение и FBO сразу отправляют товар; FBS сначала создаёт резерв</p>
+        <form id="operation-form">
+          <div class="form-grid">
+            <label>Тип операции<select name="kind" id="op-kind"><option value="receipt">Приход на ФФ</option><option value="transfer">Перемещение между ФФ</option><option value="fbs">Резерв FBS</option><option value="fbo">Отправка FBO</option></select></label>
+            <label>Товар<select name="product_id" id="op-product" required></select></label>
+            <label>Количество<input name="quantity" type="number" min="1" step="1" required value="1"></label>
+            <label id="source-field">Откуда · ФФ<select name="source_id" id="op-source"></select></label>
+            <label id="destination-field">Куда · ФФ<select name="destination_id" id="op-destination"></select></label>
+            <label id="target-field" hidden><span id="target-label">Клиент / номер заказа</span><input name="target" maxlength="160" placeholder="Например, заказ FBS-001"></label>
+          </div>
+          <div class="form-footer"><span id="operation-hint" class="muted"></span><button type="submit" class="primary">Оформить операцию</button></div>
+        </form>
+      </div>
+      <div class="panel"><div class="panel-heading"><h2>Операции и отправки</h2><label>Статус <select id="operation-filter"><option value="">Все</option><option value="reserved">В резерве</option><option value="in_transit">В пути</option><option value="received">Принято</option><option value="delivered">Доставлено</option><option value="cancelled">Отменено</option></select></label></div><div id="operations-table" class="table-wrap"></div></div>
+    </section>
+    <section id="page-warehouses" class="page" hidden>
+      <div class="panel form-panel"><h2>Добавить фулфилмент</h2><form id="warehouse-form" class="inline-form"><label class="grow">Название ФФ<input name="name" required maxlength="100" placeholder="Например, Запад"></label><button class="primary" type="submit">Добавить склад</button></form></div>
+      <div class="notice"><strong>Удаление сохраняет товар и историю</strong><p>ФФ перейдёт в архив. Можно вывести свободный остаток и завершить начатые операции; новые поступления и резервы запрещены.</p></div>
+      <div id="warehouse-cards" class="warehouse-cards"></div>
+    </section>
+    <section id="page-history" class="page" hidden>
+      <div class="panel"><div class="panel-heading"><div><h2>История действий</h2><p>Источник и назначение на момент события</p></div><div class="filters"><label>Товар<select id="history-product"><option value="">Все товары</option></select></label><label>ФФ<select id="history-warehouse"><option value="">Все склады</option></select></label></div></div><div id="history-table" class="table-wrap"></div></div>
+    </section>
+    <footer>CheckStock · Прототип складского учёта <span id="updated"></span></footer>
+  </main>
+</body>
+</html>

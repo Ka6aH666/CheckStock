@@ -1,0 +1,13 @@
+.venv/
+.env
+.local/
+.idea/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.egg-info/
+# Local design-skill checkout, not application source.
+/unslop/
